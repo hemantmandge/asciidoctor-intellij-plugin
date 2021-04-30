@@ -7,6 +7,10 @@ This document provides a high-level view of the changes introduced by release.
 [[releasenotes]]
 == Release notes
 
+=== 0.32.41
+
+- update to AsciidoctorJ 2.5.0 and Asciidoctor 2.0.14 (#738)
+
 === 0.32.40
 
 - resolve attributes like `docname` in nested includes to validate anchors (#737)
