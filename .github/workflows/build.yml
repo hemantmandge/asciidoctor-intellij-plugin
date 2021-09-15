@@ -51,6 +51,7 @@ jobs:
     name: Build
     needs: gradleValidation
     runs-on: ubuntu-latest
+    if: 'false'
     outputs:
       name: ${{ steps.properties.outputs.name }}
       version: ${{ steps.properties.outputs.version }}
@@ -120,6 +121,7 @@ jobs:
     name: Verify
     needs: build
     runs-on: ubuntu-latest
+    if: 'false'
     steps:
 
       # Setup Java 11 environment for the next steps
@@ -157,6 +159,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "::set-output name=ideVersions::$IDE_VERSIONS"
           echo "::set-output name=pluginVerifierHomeDir::~/.pluginVerifier"
+
       # Cache Plugin Verifier IDEs
       - name: Setup Plugin Verifier IDEs Cache
         uses: actions/cache@v2
@@ -167,6 +170,41 @@ jobs:
       # Run IntelliJ Plugin Verifier action using GitHub Action
       - name: Verify Plugin
         run: ./gradlew runPluginVerifier -Pplugin.verifier.home.dir=${{ steps.properties.outputs.pluginVerifierHomeDir }}
+
+  # Verify built plugin using IntelliJ Plugin Verifier tool
+  # Requires build job to be passed
+  qodana-docs:
+    name: Qodana Docs
+    # needs: build
+    runs-on: ubuntu-latest
+    steps:
+
+      # Check out current repository
+      - name: Fetch Sources
+        uses: actions/checkout@v2
+
+      - uses: actions/cache@v2
+        with:
+          path: /home/runner/work/_temp/_github_home/qodana-cache
+          key: ${{ runner.os }}-qodana-${{ github.ref }}
+          restore-keys: |
+            ${{ runner.os }}-qodana-${{ github.ref }}
+            ${{ runner.os }}-qodana-
+
+      # Run Qodana inspections
+      - name: download
+        run: curl -L -o asciidoctor-intellij-plugin.zip https://github.com/asciidoctor/asciidoctor-intellij-plugin/releases/download/0.33.19/asciidoctor-intellij-plugin-0.33.19.zip
+      - name: unzip
+        run: unzip asciidoctor-intellij-plugin.zip
+
+      - name: Qodana - Code Inspection (docs only)
+        run: docker run -v ${{ github.workspace }}/doc:/data/project -v ${{ github.workspace }}/qodana:/data/results -v /home/runner/work/_temp/_github_home/qodana-cache:/data/cache -v ${{ github.workspace }}/asciidoctor-intellij-plugin:/opt/idea/plugins/asciidoctor-intellij-plugin jetbrains/qodana:2021.2-eap --save-report
+
+      - name: Upload Qodana report
+        uses: actions/upload-artifact@v2
+        with:
+          name: qodana-report
+          path: ${{ github.workspace }}/qodana/report/
 
   # Prepare a draft release for GitHub Releases page for the manual verification
   # If accepted and published, release workflow would be triggered
@@ -221,3 +259,48 @@ jobs:
           asset_path: ./${{ needs.build.outputs.artifact }}
           asset_name: ${{ needs.build.outputs.artifact }}
           asset_content_type: application/zip
+  cleanup:
+    name: Cleanup old builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup old runs
+        uses: actions/github-script@v4
+        with:
+          script: |
+            const days_to_expiration = 30;
+            const ms_in_day = 86400000;
+            const now = Date.now();
+            let response = await github.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 30,
+              workflow_id: 'build.yml'
+              });
+
+            // traverse from the end to delete from the end to not get confused when deleting items
+            let page = Math.ceil(response.data.total_count / 30)
+
+            while (page > 1) {
+              response = await github.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                page: page,
+                workflow_id: 'build.yml'
+              });
+
+              for (const run of response.data.workflow_runs) {
+                const days_old = Math.ceil((now - Date.parse(run.created_at)) / ms_in_day)
+                if (days_old > days_to_expiration) {
+                  console.log(`Run id ${run.id} is ${days_old} day old. Deleting...`);
+                  await github.actions.deleteWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  });
+                } else {
+                  console.log(`Run id ${run.id} is ${days_old} day old. Keeping...`);
+                }
+              }
+              -- page
+            }
+
