@@ -197,8 +197,13 @@ jobs:
       - name: unzip
         run: unzip asciidoctor-intellij-plugin.zip
 
+      - name: download
+        run: curl -L -o grazie.zip https://plugins.jetbrains.com/plugin/download?rel=true&updateId=135090
+      - name: unzip
+        run: unzip grazie.zip
+
       - name: Qodana - Code Inspection (docs only)
-        run: docker run -v ${{ github.workspace }}/doc:/data/project -v ${{ github.workspace }}/qodana:/data/results -v /home/runner/work/_temp/_github_home/qodana-cache:/data/cache -v ${{ github.workspace }}/asciidoctor-intellij-plugin:/opt/idea/plugins/asciidoctor-intellij-plugin jetbrains/qodana:2021.2-eap --save-report
+        run: docker run -v ${{ github.workspace }}/doc:/data/project -v ${{ github.workspace }}/qodana:/data/results -v /home/runner/work/_temp/_github_home/qodana-cache:/data/cache -v ${{ github.workspace }}/asciidoctor-intellij-plugin:/opt/idea/plugins/asciidoctor-intellij-plugin -v ${{ github.workspace }}/grazie:/opt/idea/plugins/grazie jetbrains/qodana:2021.2-eap --save-report
 
       - name: Upload Qodana report
         uses: actions/upload-artifact@v2
