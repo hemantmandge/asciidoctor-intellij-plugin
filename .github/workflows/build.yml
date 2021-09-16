@@ -198,7 +198,7 @@ jobs:
         run: unzip asciidoctor-intellij-plugin.zip
 
       - name: download
-        run: curl -L -o grazie.zip https://plugins.jetbrains.com/plugin/download?rel=true&updateId=135090
+        run: curl -L -o grazie.zip 'https://plugins.jetbrains.com/plugin/download?rel=true&updateId=135090'
       - name: unzip
         run: unzip grazie.zip
 
